@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Anthropic streams that a gateway ends with an in-band `api_error` frame after `message_start` (e.g. `rf-link: the reply ended before it was complete`) are now reported as stream truncations and retried, instead of ending the turn with a non-retryable error
+
 ## [18.17.0] - 2026-11-06
 
 ### Added

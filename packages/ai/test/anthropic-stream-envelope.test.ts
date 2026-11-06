@@ -1653,6 +1653,12 @@ describe("anthropic stream envelope handling", () => {
 				error: { type: "overloaded_error", message: "Overloaded" },
 				expectedFields: "type=overloaded_error",
 			},
+			{
+				// Gateways (e.g. magpie) relay an upstream that cut the stream as the
+				// documented 500-class `api_error` with free-form text.
+				error: { type: "api_error", message: "rf-link: the reply ended before it was complete" },
+				expectedFields: "type=api_error",
+			},
 		]) {
 			const frames = createOpenMessageSseFrames("Here is the first half");
 			frames.push(sseFrame("error", { type: "error", error }));

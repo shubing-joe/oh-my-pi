@@ -1002,16 +1002,19 @@ function isEmptyContentDelta(event: AnthropicStreamEvent): boolean {
  * Codex native-lane steer rejection uses, so a gateway-cut stream is
  * identifiable after the `Error` instance is gone.
  *
- * Only frame types the provider loop already retries take the truncation path.
- * A deterministic rejection (`invalid_request_error`, `authentication_error`,
- * `billing_error`, `permission_error`, an account cap) is a decision the
- * provider made about the request, not a cut wire: rewriting it as a truncation
- * would replay a request that can never succeed and, once text is committed,
- * continue a turn the provider refused. The gate is
- * {@link AIError.isProviderRetryableError} on the very error that is otherwise
- * thrown, so a frame keeps exactly the verdict it had before this classification
- * existed — the retry decision moves nowhere, only the shape of a retryable
- * failure changes.
+ * Only frame types the provider loop already retries take the truncation path,
+ * plus `api_error` inside an open message. A deterministic rejection
+ * (`invalid_request_error`, `authentication_error`, `billing_error`,
+ * `permission_error`, an account cap) is a decision the provider made about the
+ * request, not a cut wire: rewriting it as a truncation would replay a request
+ * that can never succeed and, once text is committed, continue a turn the
+ * provider refused. The gate is {@link AIError.isProviderRetryableError} on the
+ * very error that is otherwise thrown. `api_error` is Anthropic's documented
+ * 500-class "unexpected internal error"; once the envelope is open it is how
+ * Anthropic-compatible gateways (and this repo's own Messages server) report an
+ * upstream that died mid-generation, with free-form text the transient
+ * vocabulary cannot recognize. Before `message_start` it keeps its terminal
+ * verdict.
  */
 function createAnthropicSseStreamError(data: string, midMessage: boolean): Error {
 	let parsed: { error?: { type?: unknown; code?: unknown; message?: unknown } } | undefined;
@@ -1031,7 +1034,7 @@ function createAnthropicSseStreamError(data: string, midMessage: boolean): Error
 			: data,
 		{ provider: "anthropic", kind: "output" },
 	);
-	if (!midMessage || !AIError.isProviderRetryableError(rejection)) {
+	if (!midMessage || (errorType !== "api_error" && !AIError.isProviderRetryableError(rejection))) {
 		return rejection;
 	}
 	const fields = [errorType ? `type=${errorType}` : undefined, errorCode ? `code=${errorCode}` : undefined]
